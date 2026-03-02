@@ -11,6 +11,7 @@ import type {
     ButtonStyle,
     ComponentRow,
     RichContentField,
+    RichContent,
 } from '../platform/types';
 import {
     createRichContent,
@@ -100,8 +101,10 @@ export function buildApprovalNotification(opts: {
     readonly channelId: string | null;
     /** List of tool names requesting approval. */
     readonly toolNames?: readonly string[];
+    /** Additional fields appended after default ones. */
+    readonly extraFields?: readonly { readonly name: string; readonly value: string; readonly inline?: boolean }[];
 }): MessagePayload {
-    const { title, description, projectName, channelId, toolNames } = opts;
+    const { title, description, projectName, channelId, toolNames, extraFields } = opts;
 
     const richContent = pipe(
         createRichContent(),
@@ -112,6 +115,10 @@ export function buildApprovalNotification(opts: {
         (rc) =>
             toolNames && toolNames.length > 0
                 ? addField(rc, 'Tools', toolNames.join(', '), true)
+                : rc,
+        (rc) =>
+            extraFields
+                ? extraFields.reduce<typeof rc>((acc, f) => addField(acc, f.name, f.value, f.inline), rc)
                 : rc,
         (rc) => withFooter(rc, 'Approval required'),
         (rc) => withTimestamp(rc),
@@ -134,14 +141,20 @@ export function buildPlanningNotification(opts: {
     readonly description: string;
     readonly projectName: string;
     readonly channelId: string | null;
+    /** Additional fields appended before footer. */
+    readonly extraFields?: readonly { readonly name: string; readonly value: string; readonly inline?: boolean }[];
 }): MessagePayload {
-    const { title, description, projectName, channelId } = opts;
+    const { title, description, projectName, channelId, extraFields } = opts;
 
     const richContent = pipe(
         createRichContent(),
         (rc) => withTitle(rc, title),
         (rc) => withDescription(rc, description),
         (rc) => withColor(rc, COLOR_PLANNING),
+        (rc) =>
+            extraFields
+                ? extraFields.reduce<typeof rc>((acc, f) => addField(acc, f.name, f.value, f.inline), rc)
+                : rc,
         (rc) => withFooter(rc, 'Planning mode detected'),
         (rc) => withTimestamp(rc),
     );
@@ -162,14 +175,20 @@ export function buildErrorPopupNotification(opts: {
     readonly errorMessage: string;
     readonly projectName: string;
     readonly channelId: string | null;
+    /** Additional fields appended before footer. */
+    readonly extraFields?: readonly { readonly name: string; readonly value: string; readonly inline?: boolean }[];
 }): MessagePayload {
-    const { title, errorMessage, projectName, channelId } = opts;
+    const { title, errorMessage, projectName, channelId, extraFields } = opts;
 
     const richContent = pipe(
         createRichContent(),
         (rc) => withTitle(rc, title),
         (rc) => withDescription(rc, errorMessage),
         (rc) => withColor(rc, COLOR_ERROR),
+        (rc) =>
+            extraFields
+                ? extraFields.reduce<typeof rc>((acc, f) => addField(acc, f.name, f.value, f.inline), rc)
+                : rc,
         (rc) => withFooter(rc, 'Agent error detected'),
         (rc) => withTimestamp(rc),
     );
@@ -183,6 +202,70 @@ export function buildErrorPopupNotification(opts: {
     ];
 
     return { richContent, components };
+}
+
+/** Build an auto-approved notification (shown when auto-accept fires). */
+export function buildAutoApprovedNotification(opts: {
+    readonly accepted: boolean;
+    readonly projectName: string;
+    readonly description?: string;
+    readonly approveText?: string;
+}): MessagePayload {
+    const { accepted, projectName, description, approveText } = opts;
+
+    const richContent = pipe(
+        createRichContent(),
+        (rc) => withTitle(rc, accepted ? 'Auto-approved' : 'Auto-approve failed'),
+        (rc) => withDescription(
+            rc,
+            accepted
+                ? 'An action was automatically approved.'
+                : 'Auto-approve attempted but failed. Manual approval required.',
+        ),
+        (rc) => withColor(rc, accepted ? COLOR_SUCCESS : 0xF39C12),
+        (rc) => addField(rc, 'Auto-approve mode', 'ON', true),
+        (rc) => addField(rc, 'Workspace', projectName, true),
+        (rc) => addField(
+            rc,
+            'Result',
+            accepted ? 'Executed Always Allow/Allow' : 'Manual approval required',
+            true,
+        ),
+        (rc) => description ? addField(rc, 'Action Detail', description.substring(0, 1024), false) : rc,
+        (rc) => approveText ? addField(rc, 'Approved via', approveText, true) : rc,
+        (rc) => withTimestamp(rc),
+    );
+
+    return { richContent };
+}
+
+/**
+ * Build a "resolved" overlay from an existing notification payload.
+ * Changes colour to grey, adds a Status field, and disables all buttons.
+ */
+export function buildResolvedOverlay(
+    original: MessagePayload,
+    statusText: string,
+): MessagePayload {
+    const rc = pipe(
+        original.richContent ?? createRichContent(),
+        (r) => withColor(r, COLOR_NEUTRAL),
+        (r) => addField(r, 'Status', statusText, false),
+    );
+
+    const disabledComponents: ComponentRow[] | undefined = original.components
+        ? original.components.map((row) => ({
+              components: row.components.map((comp) =>
+                  comp.type === 'button' ? { ...comp, disabled: true as const } : comp,
+              ),
+          }))
+        : undefined;
+
+    return {
+        ...original,
+        richContent: rc,
+        components: disabledComponents,
+    };
 }
 
 /** Build a simple status embed. */

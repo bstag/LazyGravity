@@ -1,8 +1,10 @@
 import type { MessagePayload, ButtonDef, ComponentRow } from '../../src/platform/types';
 import {
     buildApprovalNotification,
+    buildAutoApprovedNotification,
     buildPlanningNotification,
     buildErrorPopupNotification,
+    buildResolvedOverlay,
     buildStatusNotification,
     buildProgressNotification,
 } from '../../src/services/notificationSender';
@@ -506,5 +508,387 @@ describe('customId format', () => {
             expect(id).not.toContain(':   ');
             expect(id.endsWith(':proj')).toBe(true);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// buildAutoApprovedNotification
+// ---------------------------------------------------------------------------
+
+describe('buildAutoApprovedNotification', () => {
+    it('returns "Auto-approved" title when accepted is true', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'proj-auto',
+        });
+        expect(payload.richContent!.title).toBe('Auto-approved');
+    });
+
+    it('returns "Auto-approve failed" title when accepted is false', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: false,
+            projectName: 'proj-auto',
+        });
+        expect(payload.richContent!.title).toBe('Auto-approve failed');
+    });
+
+    it('uses green colour (0x2ECC71) when accepted is true', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'proj-auto',
+        });
+        expect(payload.richContent!.color).toBe(0x2ECC71);
+    });
+
+    it('uses amber colour (0xF39C12) when accepted is false', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: false,
+            projectName: 'proj-auto',
+        });
+        expect(payload.richContent!.color).toBe(0xF39C12);
+    });
+
+    it('sets description for accepted=true', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'proj',
+        });
+        expect(payload.richContent!.description).toBe(
+            'An action was automatically approved.',
+        );
+    });
+
+    it('sets description for accepted=false', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: false,
+            projectName: 'proj',
+        });
+        expect(payload.richContent!.description).toBe(
+            'Auto-approve attempted but failed. Manual approval required.',
+        );
+    });
+
+    it('includes Auto-approve mode, Workspace, and Result fields', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+        });
+        const fields = payload.richContent!.fields!;
+        const modeField = fields.find((f) => f.name === 'Auto-approve mode');
+        const wsField = fields.find((f) => f.name === 'Workspace');
+        const resultField = fields.find((f) => f.name === 'Result');
+
+        expect(modeField).toBeDefined();
+        expect(modeField!.value).toBe('ON');
+        expect(wsField!.value).toBe('ws-x');
+        expect(resultField!.value).toBe('Executed Always Allow/Allow');
+    });
+
+    it('shows "Manual approval required" in Result when accepted is false', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: false,
+            projectName: 'ws-x',
+        });
+        const resultField = payload.richContent!.fields!.find((f) => f.name === 'Result');
+        expect(resultField!.value).toBe('Manual approval required');
+    });
+
+    it('includes Action Detail field when description is provided', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+            description: 'Ran bash command',
+        });
+        const detailField = payload.richContent!.fields!.find(
+            (f) => f.name === 'Action Detail',
+        );
+        expect(detailField).toBeDefined();
+        expect(detailField!.value).toBe('Ran bash command');
+    });
+
+    it('omits Action Detail field when description is not provided', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+        });
+        const detailField = payload.richContent!.fields?.find(
+            (f) => f.name === 'Action Detail',
+        );
+        expect(detailField).toBeUndefined();
+    });
+
+    it('truncates description to 1024 characters', () => {
+        const longDesc = 'X'.repeat(2000);
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+            description: longDesc,
+        });
+        const detailField = payload.richContent!.fields!.find(
+            (f) => f.name === 'Action Detail',
+        );
+        expect(detailField!.value).toHaveLength(1024);
+    });
+
+    it('includes "Approved via" field when approveText is provided', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+            approveText: 'Always Allow',
+        });
+        const approvedField = payload.richContent!.fields!.find(
+            (f) => f.name === 'Approved via',
+        );
+        expect(approvedField).toBeDefined();
+        expect(approvedField!.value).toBe('Always Allow');
+    });
+
+    it('omits "Approved via" field when approveText is not provided', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+        });
+        const approvedField = payload.richContent!.fields?.find(
+            (f) => f.name === 'Approved via',
+        );
+        expect(approvedField).toBeUndefined();
+    });
+
+    it('has a timestamp', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+        });
+        expect(payload.richContent!.timestamp).toBeInstanceOf(Date);
+    });
+
+    it('has no components (no buttons)', () => {
+        const payload = buildAutoApprovedNotification({
+            accepted: true,
+            projectName: 'ws-x',
+        });
+        expect(payload.components).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// buildResolvedOverlay
+// ---------------------------------------------------------------------------
+
+describe('buildResolvedOverlay', () => {
+    function createApprovalPayload() {
+        return buildApprovalNotification({
+            title: 'Approval Needed',
+            description: 'Tool execution requires approval',
+            projectName: 'my-project',
+            channelId: 'ch-123',
+        });
+    }
+
+    it('changes colour to neutral grey (0x95A5A6)', () => {
+        const original = createApprovalPayload();
+        const resolved = buildResolvedOverlay(original, 'Approved by user');
+        expect(resolved.richContent!.color).toBe(0x95A5A6);
+    });
+
+    it('adds a Status field with the provided status text', () => {
+        const original = createApprovalPayload();
+        const resolved = buildResolvedOverlay(original, 'Denied by admin');
+        const statusField = resolved.richContent!.fields!.find(
+            (f) => f.name === 'Status',
+        );
+        expect(statusField).toBeDefined();
+        expect(statusField!.value).toBe('Denied by admin');
+        expect(statusField!.inline).toBeFalsy();
+    });
+
+    it('preserves the original title and description', () => {
+        const original = createApprovalPayload();
+        const resolved = buildResolvedOverlay(original, 'Approved');
+        expect(resolved.richContent!.title).toBe('Approval Needed');
+        expect(resolved.richContent!.description).toBe('Tool execution requires approval');
+    });
+
+    it('disables all buttons', () => {
+        const original = createApprovalPayload();
+        const resolved = buildResolvedOverlay(original, 'Approved');
+        const buttons = extractButtons(resolved);
+        expect(buttons.length).toBeGreaterThan(0);
+        for (const btn of buttons) {
+            expect(btn.disabled).toBe(true);
+        }
+    });
+
+    it('preserves button labels and styles after disabling', () => {
+        const original = createApprovalPayload();
+        const resolved = buildResolvedOverlay(original, 'Approved');
+        const buttons = extractButtons(resolved);
+        expect(buttons[0]).toMatchObject({ label: 'Allow', style: 'success', disabled: true });
+        expect(buttons[1]).toMatchObject({ label: 'Allow Chat', style: 'primary', disabled: true });
+        expect(buttons[2]).toMatchObject({ label: 'Deny', style: 'danger', disabled: true });
+    });
+
+    it('returns undefined components when original has no components', () => {
+        const original = buildStatusNotification({
+            title: 'Status',
+            description: 'No buttons',
+        });
+        const resolved = buildResolvedOverlay(original, 'Done');
+        expect(resolved.components).toBeUndefined();
+    });
+
+    it('does not mutate the original payload', () => {
+        const original = createApprovalPayload();
+        const originalColor = original.richContent!.color;
+        const originalFieldCount = original.richContent!.fields?.length ?? 0;
+
+        buildResolvedOverlay(original, 'Approved');
+
+        expect(original.richContent!.color).toBe(originalColor);
+        expect(original.richContent!.fields?.length ?? 0).toBe(originalFieldCount);
+    });
+
+    it('works with planning notification as input', () => {
+        const original = buildPlanningNotification({
+            title: 'Planning',
+            description: 'Plan ready',
+            projectName: 'p',
+            channelId: 'c',
+        });
+        const resolved = buildResolvedOverlay(original, 'Plan accepted');
+        expect(resolved.richContent!.color).toBe(0x95A5A6);
+        const statusField = resolved.richContent!.fields!.find(
+            (f) => f.name === 'Status',
+        );
+        expect(statusField!.value).toBe('Plan accepted');
+        const buttons = extractButtons(resolved);
+        for (const btn of buttons) {
+            expect(btn.disabled).toBe(true);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// extraFields parameter
+// ---------------------------------------------------------------------------
+
+describe('extraFields parameter', () => {
+    describe('buildApprovalNotification with extraFields', () => {
+        it('appends extra fields after default fields', () => {
+            const payload = buildApprovalNotification({
+                title: 'Approval',
+                description: 'Desc',
+                projectName: 'proj',
+                channelId: 'ch',
+                extraFields: [
+                    { name: 'Session', value: 'session-1', inline: true },
+                    { name: 'Context', value: 'some context' },
+                ],
+            });
+            const fields = payload.richContent!.fields!;
+            // Default fields: Project (and possibly Tools)
+            const sessionField = fields.find((f) => f.name === 'Session');
+            const contextField = fields.find((f) => f.name === 'Context');
+            expect(sessionField).toBeDefined();
+            expect(sessionField!.value).toBe('session-1');
+            expect(sessionField!.inline).toBe(true);
+            expect(contextField).toBeDefined();
+            expect(contextField!.value).toBe('some context');
+        });
+
+        it('places extra fields before footer', () => {
+            const payload = buildApprovalNotification({
+                title: 'Approval',
+                description: 'Desc',
+                projectName: 'proj',
+                channelId: 'ch',
+                extraFields: [{ name: 'Extra', value: 'val' }],
+            });
+            // Footer should still be present
+            expect(payload.richContent!.footer).toBe('Approval required');
+            // Extra field should exist in the fields array
+            const extraField = payload.richContent!.fields!.find(
+                (f) => f.name === 'Extra',
+            );
+            expect(extraField).toBeDefined();
+        });
+
+        it('works without extraFields (no crash)', () => {
+            const payload = buildApprovalNotification({
+                title: 'Approval',
+                description: 'Desc',
+                projectName: 'proj',
+                channelId: 'ch',
+            });
+            // Only the Project field should be present
+            expect(payload.richContent!.fields!.length).toBe(1);
+            expect(payload.richContent!.fields![0].name).toBe('Project');
+        });
+    });
+
+    describe('buildPlanningNotification with extraFields', () => {
+        it('appends extra fields', () => {
+            const payload = buildPlanningNotification({
+                title: 'Planning',
+                description: 'Desc',
+                projectName: 'proj',
+                channelId: 'ch',
+                extraFields: [
+                    { name: 'Duration', value: '5m', inline: true },
+                ],
+            });
+            const durationField = payload.richContent!.fields!.find(
+                (f) => f.name === 'Duration',
+            );
+            expect(durationField).toBeDefined();
+            expect(durationField!.value).toBe('5m');
+            expect(durationField!.inline).toBe(true);
+        });
+
+        it('has no extra fields when extraFields is omitted', () => {
+            const payload = buildPlanningNotification({
+                title: 'Planning',
+                description: 'Desc',
+                projectName: 'proj',
+                channelId: 'ch',
+            });
+            // Planning notification has no default fields
+            expect(payload.richContent!.fields).toBeUndefined();
+        });
+    });
+
+    describe('buildErrorPopupNotification with extraFields', () => {
+        it('appends extra fields', () => {
+            const payload = buildErrorPopupNotification({
+                title: 'Error',
+                errorMessage: 'Something broke',
+                projectName: 'proj',
+                channelId: 'ch',
+                extraFields: [
+                    { name: 'Stack', value: 'line 42', inline: false },
+                    { name: 'Code', value: 'ERR_001' },
+                ],
+            });
+            const stackField = payload.richContent!.fields!.find(
+                (f) => f.name === 'Stack',
+            );
+            const codeField = payload.richContent!.fields!.find(
+                (f) => f.name === 'Code',
+            );
+            expect(stackField).toBeDefined();
+            expect(stackField!.value).toBe('line 42');
+            expect(codeField).toBeDefined();
+            expect(codeField!.value).toBe('ERR_001');
+        });
+
+        it('has no extra fields when extraFields is omitted', () => {
+            const payload = buildErrorPopupNotification({
+                title: 'Error',
+                errorMessage: 'Something broke',
+                projectName: 'proj',
+                channelId: 'ch',
+            });
+            expect(payload.richContent!.fields).toBeUndefined();
+        });
     });
 });

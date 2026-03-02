@@ -1,4 +1,4 @@
-import { EmbedBuilder, Message } from 'discord.js';
+import { EmbedBuilder, Message, TextChannel } from 'discord.js';
 
 import { parseMessageContent } from '../commands/messageParser';
 import { SlashCommandHandler } from '../commands/slashCommandHandler';
@@ -6,6 +6,8 @@ import { WorkspaceCommandHandler } from '../commands/workspaceCommandHandler';
 import { ChatSessionRepository } from '../database/chatSessionRepository';
 import { UserPreferenceRepository } from '../database/userPreferenceRepository';
 import { formatAsPlainText } from '../utils/plainTextFormatter';
+import type { PlatformChannel } from '../platform/types';
+import { wrapDiscordChannel } from '../platform/discord/wrappers';
 import {
     CdpBridge,
     ensureApprovalDetector as ensureApprovalDetectorFn,
@@ -60,11 +62,11 @@ export interface MessageCreateHandlerDeps {
     ) => Promise<void>;
     handleScreenshot: (target: Message, cdp: CdpService | null) => Promise<void>;
     getCurrentCdp?: (bridge: CdpBridge) => CdpService | null;
-    ensureApprovalDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string, client: any) => void;
-    ensureErrorPopupDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string, client: any) => void;
-    ensurePlanningDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string, client: any) => void;
-    registerApprovalWorkspaceChannel?: (bridge: CdpBridge, projectName: string, channel: Message['channel']) => void;
-    registerApprovalSessionChannel?: (bridge: CdpBridge, projectName: string, sessionTitle: string, channel: Message['channel']) => void;
+    ensureApprovalDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string) => void;
+    ensureErrorPopupDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string) => void;
+    ensurePlanningDetector?: (bridge: CdpBridge, cdp: CdpService, projectName: string) => void;
+    registerApprovalWorkspaceChannel?: (bridge: CdpBridge, projectName: string, channel: PlatformChannel) => void;
+    registerApprovalSessionChannel?: (bridge: CdpBridge, projectName: string, sessionTitle: string, channel: PlatformChannel) => void;
     downloadInboundImageAttachments?: (message: Message) => Promise<InboundImageAttachment[]>;
     cleanupInboundImageAttachments?: (attachments: InboundImageAttachment[]) => Promise<void>;
     isImageAttachment?: (contentType: string | null | undefined, fileName: string | null | undefined) => boolean;
@@ -256,16 +258,17 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                             const projectName = deps.bridge.pool.extractProjectName(workspacePath);
 
                             deps.bridge.lastActiveWorkspace = projectName;
-                            deps.bridge.lastActiveChannel = message.channel;
-                            registerApprovalWorkspaceChannel(deps.bridge, projectName, message.channel);
+                            const platformChannel = wrapDiscordChannel(message.channel as TextChannel);
+                            deps.bridge.lastActiveChannel = platformChannel;
+                            registerApprovalWorkspaceChannel(deps.bridge, projectName, platformChannel);
 
-                            ensureApprovalDetector(deps.bridge, cdp, projectName, deps.client);
-                            ensureErrorPopupDetector(deps.bridge, cdp, projectName, deps.client);
-                            ensurePlanningDetector(deps.bridge, cdp, projectName, deps.client);
+                            ensureApprovalDetector(deps.bridge, cdp, projectName);
+                            ensureErrorPopupDetector(deps.bridge, cdp, projectName);
+                            ensurePlanningDetector(deps.bridge, cdp, projectName);
 
                             const session = deps.chatSessionRepo.findByChannelId(message.channelId);
                             if (session?.displayName) {
-                                registerApprovalSessionChannel(deps.bridge, projectName, session.displayName, message.channel);
+                                registerApprovalSessionChannel(deps.bridge, projectName, session.displayName, platformChannel);
                             }
 
                             if (session?.isRenamed && session.displayName) {
@@ -296,7 +299,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                             // Re-register session channel after autoRenameChannel sets displayName
                             const updatedSession = deps.chatSessionRepo.findByChannelId(message.channelId);
                             if (updatedSession?.displayName) {
-                                registerApprovalSessionChannel(deps.bridge, projectName, updatedSession.displayName, message.channel);
+                                registerApprovalSessionChannel(deps.bridge, projectName, updatedSession.displayName, platformChannel);
                             }
 
                             // Register echo hash so UserMessageDetector skips this message
