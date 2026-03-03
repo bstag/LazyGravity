@@ -12,8 +12,15 @@ jest.mock('../../src/ui/modeUi', () => ({
     buildModePayload: jest.fn().mockReturnValue({ richContent: { title: 'Mode' }, components: [] }),
 }));
 
+jest.mock('../../src/adapters/AdapterFactory', () => ({
+    AdapterFactory: {
+        create: jest.fn(),
+    },
+}));
+
 import { getCurrentCdp } from '../../src/services/cdpBridgeManager';
 import { buildModePayload } from '../../src/ui/modeUi';
+import { AdapterFactory } from '../../src/adapters/AdapterFactory';
 
 function createMockInteraction() {
     return {
@@ -79,14 +86,18 @@ describe('createModeSelectAction', () => {
     });
 
     it('syncs mode to CDP when available and sets as synced', async () => {
-        const mockCdp = { setUiMode: jest.fn().mockResolvedValue({ ok: true }) };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        const mockAdapter = {
+            changeUIMode: jest.fn().mockResolvedValue({ ok: true })
+        };
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
+
         const action = createModeSelectAction({ bridge, modeService });
         const interaction = createMockInteraction();
 
         await action.execute(interaction as any, ['plan']);
 
-        expect(mockCdp.setUiMode).toHaveBeenCalledWith('plan');
+        expect(mockAdapter.changeUIMode).toHaveBeenCalledWith('plan');
         expect(modeService.setMode).toHaveBeenCalledWith('plan', true);
         expect(interaction.followUp).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -96,8 +107,12 @@ describe('createModeSelectAction', () => {
     });
 
     it('shows error and does not set mode when CDP sync fails', async () => {
-        const mockCdp = { setUiMode: jest.fn().mockResolvedValue({ ok: false, error: 'timeout' }) };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        const mockAdapter = {
+            changeUIMode: jest.fn().mockResolvedValue({ ok: false, error: 'timeout' })
+        };
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
+
         const action = createModeSelectAction({ bridge, modeService });
         const interaction = createMockInteraction();
 

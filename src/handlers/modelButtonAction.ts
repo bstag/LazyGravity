@@ -11,6 +11,7 @@ import type { CdpBridge } from '../services/cdpBridgeManager';
 import { getCurrentCdp } from '../services/cdpBridgeManager';
 import { buildModelsPayload } from '../ui/modelsUi';
 import type { ModelService } from '../services/modelService';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import type { UserPreferenceRepository } from '../database/userPreferenceRepository';
 import { logger } from '../utils/logger';
 
@@ -44,14 +45,15 @@ export function createModelButtonAction(deps: ModelButtonActionDeps): ButtonActi
 
             const cdp = getCurrentCdp(deps.bridge);
             if (!cdp) {
-                await interaction.followUp({ text: 'Not connected to CDP.' }).catch(() => {});
+                await interaction.followUp({ text: 'Not connected to CDP.' }).catch(() => { });
                 return;
             }
 
             if (params.action === 'set_default') {
-                const currentModel = await cdp.getCurrentModel();
+                const adapter = AdapterFactory.create('antigravity', cdp);
+                const currentModel = await adapter.getCurrentModel();
                 if (!currentModel) {
-                    await interaction.followUp({ text: 'No current model detected.' }).catch(() => {});
+                    await interaction.followUp({ text: 'No current model detected.' }).catch(() => { });
                     return;
                 }
                 if (deps.modelService) {
@@ -63,7 +65,7 @@ export function createModelButtonAction(deps: ModelButtonActionDeps): ButtonActi
                 await refreshModelsUI(cdp, deps, interaction);
                 await interaction.followUp({
                     text: `Default model set to ${currentModel}.`,
-                }).catch(() => {});
+                }).catch(() => { });
             } else if (params.action === 'clear_default') {
                 if (deps.modelService) {
                     deps.modelService.setDefaultModel(null);
@@ -74,13 +76,14 @@ export function createModelButtonAction(deps: ModelButtonActionDeps): ButtonActi
                 await refreshModelsUI(cdp, deps, interaction);
                 await interaction.followUp({
                     text: 'Default model cleared.',
-                }).catch(() => {});
+                }).catch(() => { });
             } else if (params.action === 'select') {
-                const res = await cdp.setUiModel(params.modelName);
+                const adapter = AdapterFactory.create('antigravity', cdp);
+                const res = await adapter.changeUIModel(params.modelName);
                 if (!res.ok) {
                     await interaction.followUp({
                         text: res.error || 'Failed to change model.',
-                    }).catch(() => {});
+                    }).catch(() => { });
                     return;
                 }
 
@@ -89,7 +92,7 @@ export function createModelButtonAction(deps: ModelButtonActionDeps): ButtonActi
 
                 await interaction.followUp({
                     text: `Model changed to ${res.model}.`,
-                }).catch(() => {});
+                }).catch(() => { });
             } else {
                 // refresh
                 await refreshModelsUI(cdp, deps, interaction);
@@ -104,8 +107,9 @@ async function refreshModelsUI(
     interaction: { update(payload: any): Promise<void> },
 ): Promise<void> {
     try {
-        const models = await cdp.getUiModels();
-        const currentModel = await cdp.getCurrentModel();
+        const adapter = AdapterFactory.create('antigravity', cdp);
+        const models = await adapter.getUiModels();
+        const currentModel = await adapter.getCurrentModel();
         const quotaData = await actionDeps.fetchQuota();
         const defaultModel = actionDeps.modelService?.getDefaultModel() ?? null;
         const payload = buildModelsPayload(models, currentModel, quotaData, defaultModel);

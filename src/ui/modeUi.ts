@@ -18,7 +18,7 @@ import {
 } from '../platform/richContentBuilder';
 
 export interface ModeUiDeps {
-    getCurrentCdp?: () => CdpService | null;
+    getCurrentEditorAdapter?: () => import('../adapters/EditorAdapter').EditorAdapter | null;
 }
 
 /**
@@ -78,10 +78,10 @@ export async function sendModeUI(
     deps?: ModeUiDeps,
 ): Promise<void> {
     // If CDP is available, query the live mode and sync modeService
-    if (deps?.getCurrentCdp) {
-        const cdp = deps.getCurrentCdp();
-        if (cdp) {
-            const liveMode = await cdp.getCurrentMode();
+    if (deps?.getCurrentEditorAdapter) {
+        const adapter = deps.getCurrentEditorAdapter();
+        if (adapter) {
+            const liveMode = await adapter.getCurrentMode();
             if (liveMode) {
                 modeService.setMode(liveMode, true);
             }

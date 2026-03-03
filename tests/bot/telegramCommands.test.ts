@@ -1,4 +1,6 @@
 import { parseTelegramCommand, handleTelegramCommand } from '../../src/bot/telegramCommands';
+import * as FactoryModule from '../../src/adapters/AdapterFactory';
+const _mockAdapter = (FactoryModule as any)._mockAdapter;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -13,6 +15,19 @@ jest.mock('../../src/utils/logger', () => ({
         done: jest.fn(),
     },
 }));
+
+jest.mock('../../src/adapters/AdapterFactory', () => {
+    const mockAdapter = {
+        cancelGeneration: jest.fn().mockResolvedValue(true),
+        getUiModels: jest.fn().mockResolvedValue(['model-a', 'model-b']),
+        getCurrentModel: jest.fn().mockResolvedValue('model-a'),
+        getCurrentMode: jest.fn().mockResolvedValue('plan'),
+    };
+    return {
+        AdapterFactory: { create: jest.fn().mockReturnValue(mockAdapter) },
+        _mockAdapter: mockAdapter,
+    };
+});
 
 jest.mock('../../src/services/cdpBridgeManager', () => ({
     getCurrentCdp: jest.fn(),
@@ -336,10 +351,7 @@ describe('handleTelegramCommand — /stop', () => {
 
         await handleTelegramCommand({ bridge, activeMonitors }, message as any, { command: 'stop', args: '' });
 
-        expect(mockCdp.call).toHaveBeenCalledWith('Runtime.evaluate', {
-            expression: 'mock_stop_script',
-            returnByValue: true,
-        });
+        expect(_mockAdapter.cancelGeneration).toHaveBeenCalled();
         expect(message.reply).toHaveBeenCalledWith({ text: 'Generation stopped.' });
     });
 
@@ -363,10 +375,7 @@ describe('handleTelegramCommand — /stop', () => {
 
         await handleTelegramCommand({ bridge }, message as any, { command: 'stop', args: '' });
 
-        expect(mockCdp.call).toHaveBeenCalledWith('Runtime.evaluate', {
-            expression: 'mock_stop_script',
-            returnByValue: true,
-        });
+        expect(_mockAdapter.cancelGeneration).toHaveBeenCalled();
         expect(message.reply).toHaveBeenCalledWith({ text: 'Generation stopped.' });
     });
 
@@ -375,6 +384,7 @@ describe('handleTelegramCommand — /stop', () => {
             call: jest.fn().mockResolvedValue({ result: { value: { ok: false } } }),
         };
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        _mockAdapter.cancelGeneration.mockResolvedValueOnce(false);
         const message = createMockMessage();
         const bridge = createMockBridge();
 
@@ -390,6 +400,7 @@ describe('handleTelegramCommand — /stop', () => {
             call: jest.fn().mockRejectedValue(new Error('CDP timeout')),
         };
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        _mockAdapter.cancelGeneration.mockRejectedValueOnce(new Error('CDP timeout'));
         const message = createMockMessage();
         const bridge = createMockBridge();
 
@@ -414,7 +425,7 @@ describe('handleTelegramCommand — /stop', () => {
         await handleTelegramCommand({ bridge, activeMonitors }, message as any, { command: 'stop', args: '' });
 
         expect(mockMonitor.clickStopButton).not.toHaveBeenCalled();
-        expect(mockCdp.call).toHaveBeenCalled();
+        expect(_mockAdapter.cancelGeneration).toHaveBeenCalled();
         expect(message.reply).toHaveBeenCalledWith({ text: 'Generation stopped.' });
     });
 });
@@ -471,7 +482,7 @@ describe('handleTelegramCommand — /mode', () => {
     });
 
     it('does not pull mode from Antigravity (ModeService is source of truth)', async () => {
-        const mockCdp = { getCurrentMode: jest.fn().mockResolvedValue('plan') };
+        const mockCdp = {};
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
         const message = createMockMessage();
         const bridge = createMockBridge();
@@ -480,7 +491,7 @@ describe('handleTelegramCommand — /mode', () => {
         await handleTelegramCommand({ bridge, modeService }, message as any, { command: 'mode', args: '' });
 
         // Should NOT call getCurrentMode or overwrite ModeService
-        expect(mockCdp.getCurrentMode).not.toHaveBeenCalled();
+        expect(_mockAdapter.getCurrentMode).not.toHaveBeenCalled();
         expect(modeService.setMode).not.toHaveBeenCalled();
         // Should display ModeService's mode, not Antigravity's
         expect(buildModePayload).toHaveBeenCalledWith('fast', false);
@@ -519,9 +530,11 @@ describe('handleTelegramCommand — /model', () => {
     });
 
     it('shows error when no models are available', async () => {
+        _mockAdapter.getUiModels.mockResolvedValueOnce([]);
+        _mockAdapter.getCurrentModel.mockResolvedValueOnce(null);
+
         const mockCdp = {
-            getUiModels: jest.fn().mockResolvedValue([]),
-            getCurrentModel: jest.fn().mockResolvedValue(null),
+
         };
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
         (buildModelsPayload as jest.Mock).mockReturnValueOnce(null);
@@ -1045,7 +1058,7 @@ describe('handleTelegramCommand — /new', () => {
             { command: 'new', args: '' },
         );
 
-        expect(chatSessionService.startNewChat).toHaveBeenCalledWith(mockCdp);
+        expect(chatSessionService.startNewChat).toHaveBeenCalledWith(_mockAdapter);
         expect(message.reply).toHaveBeenCalledTimes(1);
         const text = message.reply.mock.calls[0][0].text;
         expect(text).toContain('New chat session started');
@@ -1118,7 +1131,7 @@ describe('handleTelegramCommand — /new', () => {
             { command: 'new', args: '' },
         );
 
-        expect(chatSessionService.startNewChat).toHaveBeenCalledWith(mockCdp);
+        expect(chatSessionService.startNewChat).toHaveBeenCalledWith(_mockAdapter);
         expect(message.reply).toHaveBeenCalledTimes(1);
         expect(message.reply).toHaveBeenCalledWith({ text: 'Failed to start new chat.' });
     });

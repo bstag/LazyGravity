@@ -12,7 +12,14 @@ jest.mock('../../src/ui/modelsUi', () => ({
     buildModelsPayload: jest.fn().mockReturnValue({ richContent: { title: 'Models' }, components: [] }),
 }));
 
+jest.mock('../../src/adapters/AdapterFactory', () => ({
+    AdapterFactory: {
+        create: jest.fn(),
+    },
+}));
+
 import { getCurrentCdp } from '../../src/services/cdpBridgeManager';
+import { AdapterFactory } from '../../src/adapters/AdapterFactory';
 
 function createMockInteraction(customId: string) {
     return {
@@ -71,28 +78,32 @@ describe('createModelButtonAction', () => {
     });
 
     it('changes model and refreshes UI on select', async () => {
-        const mockCdp = {
-            setUiModel: jest.fn().mockResolvedValue({ ok: true, model: 'new-model' }),
+        const mockAdapter = {
+            changeUIModel: jest.fn().mockResolvedValue({ ok: true, model: 'new-model' }),
             getUiModels: jest.fn().mockResolvedValue(['model-a', 'model-b']),
             getCurrentModel: jest.fn().mockResolvedValue('model-b'),
         };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
+
         const action = createModelButtonAction({ bridge, fetchQuota });
         const interaction = createMockInteraction('model_btn_new-model');
 
         await action.execute(interaction as any, { action: 'select', modelName: 'new-model' });
 
-        expect(mockCdp.setUiModel).toHaveBeenCalledWith('new-model');
+        expect(mockAdapter.changeUIModel).toHaveBeenCalledWith('new-model');
         expect(interaction.update).toHaveBeenCalled();
         expect(interaction.followUp).toHaveBeenCalledWith({ text: 'Model changed to new-model.' });
     });
 
     it('refreshes UI without changing model on refresh action', async () => {
-        const mockCdp = {
+        const mockAdapter = {
             getUiModels: jest.fn().mockResolvedValue(['model-a']),
             getCurrentModel: jest.fn().mockResolvedValue('model-a'),
         };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
+
         const action = createModelButtonAction({ bridge, fetchQuota });
         const interaction = createMockInteraction('model_refresh_btn');
 
@@ -102,11 +113,12 @@ describe('createModelButtonAction', () => {
     });
 
     it('sets current model as default on set_default action', async () => {
-        const mockCdp = {
+        const mockAdapter = {
             getCurrentModel: jest.fn().mockResolvedValue('active-model'),
             getUiModels: jest.fn().mockResolvedValue(['active-model']),
         };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
 
         const mockModelService = {
             setDefaultModel: jest.fn(),
@@ -130,11 +142,12 @@ describe('createModelButtonAction', () => {
     });
 
     it('clears default model on clear_default action', async () => {
-        const mockCdp = {
+        const mockAdapter = {
             getCurrentModel: jest.fn().mockResolvedValue('some-model'),
             getUiModels: jest.fn().mockResolvedValue(['some-model']),
         };
-        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        (AdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+        (getCurrentCdp as jest.Mock).mockReturnValue({});
 
         const mockModelService = {
             setDefaultModel: jest.fn(),

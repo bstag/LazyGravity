@@ -41,6 +41,7 @@ import { ModelService } from '../services/modelService';
 import { AutoAcceptService } from '../services/autoAcceptService';
 import { JoinCommandHandler } from '../commands/joinCommandHandler';
 import { isSessionSelectId } from '../ui/sessionPickerUi';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 
 export interface InteractionCreateHandlerDeps {
     config: { allowedUserIds: string[] };
@@ -55,7 +56,7 @@ export interface InteractionCreateHandlerDeps {
     sendModeUI: (target: { editReply: (opts: any) => Promise<any> }, modeService: ModeService, deps?: import('../ui/modeUi').ModeUiDeps) => Promise<void>;
     sendModelsUI: (
         target: { editReply: (opts: any) => Promise<any> },
-        deps: { getCurrentCdp: () => CdpService | null; fetchQuota: () => Promise<any[]> },
+        deps: { getCurrentEditorAdapter: () => import('../adapters/EditorAdapter').EditorAdapter | null; fetchQuota: () => Promise<any[]> },
     ) => Promise<void>;
     sendAutoAcceptUI: (
         target: { editReply: (opts: any) => Promise<any> },
@@ -466,7 +467,8 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                         await interaction.followUp({ content: 'Not connected to CDP.', flags: MessageFlags.Ephemeral });
                         return;
                     }
-                    const currentModel = await cdp.getCurrentModel();
+                    const adapter = AdapterFactory.create('antigravity', cdp);
+                    const currentModel = await adapter.getCurrentModel();
                     if (!currentModel) {
                         await interaction.followUp({ content: 'No current model detected.', flags: MessageFlags.Ephemeral });
                         return;
@@ -478,7 +480,10 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                     await deps.sendModelsUI(
                         { editReply: async (data: any) => await interaction.editReply(data) },
                         {
-                            getCurrentCdp: () => deps.getCurrentCdp(deps.bridge),
+                            getCurrentEditorAdapter: () => {
+                                const c = deps.getCurrentCdp(deps.bridge);
+                                return c ? AdapterFactory.create('antigravity', c) : null;
+                            },
                             fetchQuota: async () => deps.bridge.quota.fetchQuota(),
                         },
                     );
@@ -495,7 +500,10 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                     await deps.sendModelsUI(
                         { editReply: async (data: any) => await interaction.editReply(data) },
                         {
-                            getCurrentCdp: () => deps.getCurrentCdp(deps.bridge),
+                            getCurrentEditorAdapter: () => {
+                                const c = deps.getCurrentCdp(deps.bridge);
+                                return c ? AdapterFactory.create('antigravity', c) : null;
+                            },
                             fetchQuota: async () => deps.bridge.quota.fetchQuota(),
                         },
                     );
@@ -508,7 +516,10 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                     await deps.sendModelsUI(
                         { editReply: async (data: any) => await interaction.editReply(data) },
                         {
-                            getCurrentCdp: () => deps.getCurrentCdp(deps.bridge),
+                            getCurrentEditorAdapter: () => {
+                                const c = deps.getCurrentCdp(deps.bridge);
+                                return c ? AdapterFactory.create('antigravity', c) : null;
+                            },
                             fetchQuota: async () => deps.bridge.quota.fetchQuota(),
                         },
                     );
@@ -526,7 +537,8 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                         return;
                     }
 
-                    const res = await cdp.setUiModel(modelName);
+                    const adapter = AdapterFactory.create('antigravity', cdp);
+                    const res = await adapter.changeUIModel(modelName);
 
                     if (!res.ok) {
                         await interaction.followUp({ content: res.error || 'Failed to change model.', flags: MessageFlags.Ephemeral });
@@ -534,7 +546,10 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
                         await deps.sendModelsUI(
                             { editReply: async (data: any) => await interaction.editReply(data) },
                             {
-                                getCurrentCdp: () => deps.getCurrentCdp(deps.bridge),
+                                getCurrentEditorAdapter: () => {
+                                    const c = deps.getCurrentCdp(deps.bridge);
+                                    return c ? AdapterFactory.create('antigravity', c) : null;
+                                },
                                 fetchQuota: async () => deps.bridge.quota.fetchQuota(),
                             },
                         );
@@ -646,7 +661,8 @@ export function createInteractionCreateHandler(deps: InteractionCreateHandlerDep
 
                 const cdp = deps.getCurrentCdp(deps.bridge);
                 if (cdp) {
-                    const res = await cdp.setUiMode(selectedMode);
+                    const adapter = AdapterFactory.create('antigravity', cdp);
+                    const res = await adapter.changeUIMode(selectedMode);
                     if (!res.ok) {
                         logger.warn(`[Mode] UI mode switch failed: ${res.error}`);
                     }

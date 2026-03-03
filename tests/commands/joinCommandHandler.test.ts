@@ -1,5 +1,6 @@
 import { JoinCommandHandler } from '../../src/commands/joinCommandHandler';
-import { ChatSessionService, SessionListItem } from '../../src/services/chatSessionService';
+import { ChatSessionService } from '../../src/services/chatSessionService';
+import { SessionListItem } from '../../src/adapters/EditorAdapter';
 import { ChatSessionRepository } from '../../src/database/chatSessionRepository';
 import { WorkspaceBindingRepository } from '../../src/database/workspaceBindingRepository';
 import { ChannelManager } from '../../src/services/channelManager';
@@ -128,7 +129,7 @@ describe('JoinCommandHandler', () => {
 
         it('shows session picker when sessions are found', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
-            const mockCdp = { isConnected: () => true } as any;
+            const mockCdp = { isConnected: () => true, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
 
             const sessions: SessionListItem[] = [
@@ -152,7 +153,7 @@ describe('JoinCommandHandler', () => {
 
         it('returns message when no sessions found', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
-            const mockCdp = { isConnected: () => true } as any;
+            const mockCdp = { isConnected: () => true, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
             mockService.listAllSessions.mockResolvedValue([]);
 
@@ -224,7 +225,7 @@ describe('JoinCommandHandler', () => {
 
         it('creates new channel and binds session when no channel exists', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
-            const mockCdp = { isConnected: () => true } as any;
+            const mockCdp = { isConnected: () => true, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
             mockService.activateSessionByTitle.mockResolvedValue({ ok: true });
 
@@ -247,7 +248,7 @@ describe('JoinCommandHandler', () => {
 
             await handler.handleJoinSelect(interaction as any, bridge);
 
-            expect(mockService.activateSessionByTitle).toHaveBeenCalledWith(mockCdp, 'Brand New Session');
+            expect(mockService.activateSessionByTitle).toHaveBeenCalledWith(expect.any(Object), 'Brand New Session');
             // Verify channel was created
             expect(guildWithCreate.channels.create).toHaveBeenCalled();
             // Verify binding was created
@@ -261,7 +262,7 @@ describe('JoinCommandHandler', () => {
 
         it('stops existing detector before starting mirroring (force re-prime)', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
-            const mockCdp = { isConnected: () => true } as any;
+            const mockCdp = { isConnected: () => true, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
             mockService.activateSessionByTitle.mockResolvedValue({ ok: true });
 
@@ -293,7 +294,7 @@ describe('JoinCommandHandler', () => {
 
         it('shows error when session activation fails', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
-            const mockCdp = { isConnected: () => true } as any;
+            const mockCdp = { isConnected: () => true, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
             mockService.activateSessionByTitle.mockResolvedValue({ ok: false, error: 'Title not found' });
 
@@ -343,7 +344,7 @@ describe('JoinCommandHandler', () => {
         it('turns mirroring ON when no detector is active', async () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
             mockPool.getUserMessageDetector.mockReturnValue(undefined);
-            const mockCdp = { isConnected: () => true, getPrimaryContextId: () => 42 } as any;
+            const mockCdp = { isConnected: () => true, getPrimaryContextId: () => 42, on: jest.fn() } as any;
             mockPool.getOrConnect.mockResolvedValue(mockCdp);
 
             const interaction = makeMockInteraction();

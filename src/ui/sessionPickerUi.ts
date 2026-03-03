@@ -5,7 +5,6 @@ import {
 } from 'discord.js';
 
 import { t } from '../utils/i18n';
-import { SessionListItem } from '../services/chatSessionService';
 import type { MessagePayload } from '../platform/types';
 import {
     createRichContent,
@@ -14,6 +13,7 @@ import {
     withColor,
     withTimestamp,
 } from '../platform/richContentBuilder';
+import { SessionListItem } from '../adapters/EditorAdapter';
 
 /** Select menu custom ID for session picker */
 export const SESSION_SELECT_ID = 'session_select';

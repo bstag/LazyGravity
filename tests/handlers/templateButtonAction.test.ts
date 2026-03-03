@@ -88,7 +88,10 @@ describe('createTemplateButtonAction', () => {
 
     it('injects prompt and confirms on success', async () => {
         templateRepo.findById.mockReturnValue({ id: 1, name: 'Test Template', prompt: 'do something' });
-        const mockCdp = { injectMessage: jest.fn().mockResolvedValue({ ok: true }) };
+        const mockCdp = {
+            on: jest.fn(),
+            getPrimaryContextId: jest.fn().mockReturnValue(42),
+            call: jest.fn().mockResolvedValue({ result: { value: { ok: true } } }), injectMessage: jest.fn().mockResolvedValue({ ok: true }) };
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
         const action = createTemplateButtonAction({ bridge, templateRepo });
         const interaction = createMockInteraction('template_btn_1');
@@ -103,7 +106,10 @@ describe('createTemplateButtonAction', () => {
 
     it('reports injection failure', async () => {
         templateRepo.findById.mockReturnValue({ id: 1, name: 'Test', prompt: 'test' });
-        const mockCdp = { injectMessage: jest.fn().mockResolvedValue({ ok: false, error: 'CDP error' }) };
+        const mockCdp = {
+            on: jest.fn(),
+            getPrimaryContextId: jest.fn().mockReturnValue(42),
+            call: jest.fn().mockResolvedValue({ result: { value: { ok: true } } }), injectMessage: jest.fn().mockResolvedValue({ ok: false, error: 'CDP error' }) };
         (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
         const action = createTemplateButtonAction({ bridge, templateRepo });
         const interaction = createMockInteraction('template_btn_1');

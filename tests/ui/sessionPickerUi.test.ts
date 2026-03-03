@@ -3,7 +3,7 @@ import {
     isSessionSelectId,
     SESSION_SELECT_ID,
 } from '../../src/ui/sessionPickerUi';
-import { SessionListItem } from '../../src/services/chatSessionService';
+import { SessionListItem } from '../../src/adapters/EditorAdapter';
 
 describe('sessionPickerUi', () => {
     describe('isSessionSelectId', () => {

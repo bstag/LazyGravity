@@ -22,6 +22,7 @@ import type { PlatformMessage, MessagePayload } from '../platform/types';
 import type { CdpBridge } from '../services/cdpBridgeManager';
 import type { WorkspaceService } from '../services/workspaceService';
 import { getCurrentCdp } from '../services/cdpBridgeManager';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import type { ResponseMonitor } from '../services/responseMonitor';
 import type { ModeService } from '../services/modeService';
 import type { ModelService } from '../services/modelService';
@@ -270,17 +271,13 @@ async function handleStop(deps: TelegramCommandDeps, message: PlatformMessage): 
 
     try {
         logger.info('[TelegramCommand:stop] Clicking stop button via direct CDP...');
-        const { RESPONSE_SELECTORS } = await import('../services/responseMonitor');
-        const result = await cdp.call(
-            'Runtime.evaluate',
-            { expression: RESPONSE_SELECTORS.CLICK_STOP_BUTTON, returnByValue: true },
-        );
-        const value = result?.result?.value;
-        if (value && typeof value === 'object' && value.ok) {
-            logger.done(`[TelegramCommand:stop] Stop button clicked (method=${value.method})`);
+        const adapter = AdapterFactory.create('antigravity', cdp);
+        const result = await adapter.cancelGeneration();
+        if (result) {
+            logger.done(`[TelegramCommand:stop] Stop button clicked`);
             await message.reply({ text: 'Generation stopped.' }).catch(logger.error);
         } else {
-            logger.warn('[TelegramCommand:stop] Stop button not found — value:', JSON.stringify(value));
+            logger.warn('[TelegramCommand:stop] Stop button not found');
             await message.reply({ text: 'Stop button not found (generation may have already finished).' }).catch(logger.error);
         }
     } catch (err: any) {
@@ -311,8 +308,9 @@ async function handleModel(deps: TelegramCommandDeps, message: PlatformMessage):
         return;
     }
 
-    const models = await cdp.getUiModels();
-    const currentModel = await cdp.getCurrentModel();
+    const adapter = AdapterFactory.create('antigravity', cdp);
+    const models = await adapter.getUiModels();
+    const currentModel = await adapter.getCurrentModel();
     const quotaData = deps.fetchQuota ? await deps.fetchQuota() : [];
     const defaultModel = deps.modelService?.getDefaultModel() ?? null;
 
@@ -497,7 +495,8 @@ async function handleNew(deps: TelegramCommandDeps, message: PlatformMessage): P
 
     // Start a new chat session
     try {
-        const result = await deps.chatSessionService.startNewChat(cdp);
+        const adapter = AdapterFactory.create('antigravity', cdp);
+        const result = await deps.chatSessionService.startNewChat(adapter);
         if (result.ok) {
             await message.reply({ text: 'New chat session started.' }).catch(logger.error);
         } else {

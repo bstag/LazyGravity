@@ -10,6 +10,7 @@ import { WorkspaceBindingRepository } from '../database/workspaceBindingReposito
 import { ChannelManager } from '../services/channelManager';
 import { CdpConnectionPool } from '../services/cdpConnectionPool';
 import { WorkspaceService } from '../services/workspaceService';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 
 /**
  * Handler for chat session related commands
@@ -147,7 +148,7 @@ export class ChatCommandHandler {
             const activeNames = this.pool?.getActiveWorkspaceNames() ?? [];
             const anyCdp = activeNames.length > 0 ? this.pool?.getConnected(activeNames[0]) : null;
             const info = anyCdp
-                ? await this.chatSessionService.getCurrentSessionInfo(anyCdp)
+                ? await this.chatSessionService.getCurrentSessionInfo(AdapterFactory.create('antigravity', anyCdp))
                 : { title: t('(CDP Disconnected)'), hasActiveChat: false };
 
             const embed = new EmbedBuilder()

@@ -13,7 +13,7 @@ describe('PromptDispatcher', () => {
         const req = {
             message: { id: 'm1' } as any,
             prompt: 'hello',
-            cdp: {} as any,
+            editorAdapter: {} as any,
             inboundImages: [],
             options: { foo: 'bar' } as any,
         };
@@ -24,7 +24,7 @@ describe('PromptDispatcher', () => {
             {} as any,
             req.message,
             'hello',
-            req.cdp,
+            req.editorAdapter,
             {} as any,
             {} as any,
             [],

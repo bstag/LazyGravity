@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger';
-import { CdpService } from './cdpService';
+import { EditorAdapter } from '../adapters/EditorAdapter';
 
 /** Screenshot capture options */
 export interface CaptureOptions {
@@ -30,59 +30,38 @@ export interface CaptureResult {
 }
 
 export interface ScreenshotServiceOptions {
-    /** CDP service instance */
-    cdpService: CdpService;
+    /** Editor adapter instance */
+    editorAdapter: EditorAdapter;
 }
 
 /**
- * Service for capturing Antigravity UI screenshots
+ * Service for capturing UI screenshots
  *
- * Uses the Chrome DevTools Protocol Page.captureScreenshot command
- * to capture the current browser screen and return it as a Buffer sendable to Discord.
+ * Uses the EditorAdapter to capture the current browser screen and return it as a Buffer sendable to Discord.
  */
 export class ScreenshotService {
-    private cdpService: CdpService;
+    private editorAdapter: EditorAdapter;
 
     constructor(options: ScreenshotServiceOptions) {
-        this.cdpService = options.cdpService;
+        this.editorAdapter = options.editorAdapter;
     }
 
     /**
      * Capture the current screen.
      *
-     * @param options Capture options
+     * @param options Capture options (currently mostly ignored by the generic adapter interface, but kept for future expansion)
      * @returns Capture result (Buffer on success, error message on failure)
      */
     async capture(options: CaptureOptions = {}): Promise<CaptureResult> {
         try {
-            const params: Record<string, any> = {
-                format: options.format ?? 'png',
-            };
+            const buffer = await this.editorAdapter.captureScreenshot();
 
-            if (options.quality !== undefined) {
-                params.quality = options.quality;
-            }
-
-            if (options.clip) {
-                params.clip = options.clip;
-            }
-
-            if (options.captureBeyondViewport !== undefined) {
-                params.captureBeyondViewport = options.captureBeyondViewport;
-            }
-
-            const result = await this.cdpService.call('Page.captureScreenshot', params);
-
-            const base64Data: string = result?.data ?? '';
-
-            if (!base64Data) {
+            if (!buffer || buffer.length === 0) {
                 return {
                     success: false,
                     error: 'Screenshot data was empty.',
                 };
             }
-
-            const buffer = Buffer.from(base64Data, 'base64');
 
             return {
                 success: true,
@@ -106,20 +85,8 @@ export class ScreenshotService {
      */
     async getBase64(options: CaptureOptions = {}): Promise<string | null> {
         try {
-            const params: Record<string, any> = {
-                format: options.format ?? 'png',
-            };
-
-            if (options.quality !== undefined) {
-                params.quality = options.quality;
-            }
-
-            if (options.clip) {
-                params.clip = options.clip;
-            }
-
-            const result = await this.cdpService.call('Page.captureScreenshot', params);
-            return result?.data ?? null;
+            const buffer = await this.editorAdapter.captureScreenshot();
+            return buffer.toString('base64');
         } catch (error) {
             logger.error('[ScreenshotService] Error while getting Base64:', error);
             return null;

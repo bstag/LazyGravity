@@ -1,4 +1,6 @@
 import { createTelegramMessageHandler } from '../../src/bot/telegramMessageHandler';
+import * as FactoryModule from '../../src/adapters/AdapterFactory';
+const _mockAdapter = (FactoryModule as any)._mockAdapter;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -16,6 +18,16 @@ jest.mock('../../src/utils/logger', () => ({
         divider: jest.fn(),
     },
 }));
+
+jest.mock('../../src/adapters/AdapterFactory', () => {
+    const mockAdapter = {
+        changeUIMode: jest.fn().mockResolvedValue({ ok: true, mode: 'test' }),
+    };
+    return {
+        AdapterFactory: { create: jest.fn().mockReturnValue(mockAdapter) },
+        _mockAdapter: mockAdapter,
+    };
+});
 
 jest.mock('../../src/services/cdpBridgeManager', () => ({
     registerApprovalWorkspaceChannel: jest.fn(),
@@ -559,7 +571,6 @@ describe('createTelegramMessageHandler', () => {
         it('pushes ModeService mode to Antigravity on connect', async () => {
             const mockCdp = {
                 ...createMockCdp(),
-                setUiMode: jest.fn().mockResolvedValue({ ok: true }),
             };
             const pool = createMockPool(mockCdp);
             const bridge = createBridge(pool);
@@ -574,14 +585,13 @@ describe('createTelegramMessageHandler', () => {
             const handler = createTelegramMessageHandler({ bridge, telegramBindingRepo, modeService });
             await handler(message as any);
 
-            expect(mockCdp.setUiMode).toHaveBeenCalledWith('fast');
+            expect(_mockAdapter.changeUIMode).toHaveBeenCalledWith('fast');
             expect(modeService.markSynced).toHaveBeenCalled();
         });
 
         it('pushes user-selected mode (plan) to Antigravity', async () => {
             const mockCdp = {
                 ...createMockCdp(),
-                setUiMode: jest.fn().mockResolvedValue({ ok: true }),
             };
             const pool = createMockPool(mockCdp);
             const bridge = createBridge(pool);
@@ -596,14 +606,14 @@ describe('createTelegramMessageHandler', () => {
             const handler = createTelegramMessageHandler({ bridge, telegramBindingRepo, modeService });
             await handler(message as any);
 
-            expect(mockCdp.setUiMode).toHaveBeenCalledWith('plan');
+            expect(_mockAdapter.changeUIMode).toHaveBeenCalledWith('plan');
             expect(modeService.markSynced).toHaveBeenCalled();
         });
 
         it('does not crash when mode push fails', async () => {
+            _mockAdapter.changeUIMode.mockResolvedValueOnce({ ok: false, error: 'mode not found' });
             const mockCdp = {
                 ...createMockCdp(),
-                setUiMode: jest.fn().mockResolvedValue({ ok: false, error: 'mode not found' }),
             };
             const pool = createMockPool(mockCdp);
             const bridge = createBridge(pool);
@@ -618,14 +628,13 @@ describe('createTelegramMessageHandler', () => {
             const handler = createTelegramMessageHandler({ bridge, telegramBindingRepo, modeService });
             await expect(handler(message as any)).resolves.toBeUndefined();
 
-            expect(mockCdp.setUiMode).toHaveBeenCalledWith('plan');
+            expect(_mockAdapter.changeUIMode).toHaveBeenCalledWith('plan');
             expect(modeService.markSynced).not.toHaveBeenCalled();
         });
 
         it('does not attempt sync when modeService is not provided', async () => {
             const mockCdp = {
                 ...createMockCdp(),
-                setUiMode: jest.fn(),
             };
             const pool = createMockPool(mockCdp);
             const bridge = createBridge(pool);
@@ -636,7 +645,7 @@ describe('createTelegramMessageHandler', () => {
             const handler = createTelegramMessageHandler({ bridge, telegramBindingRepo });
             await handler(message as any);
 
-            expect(mockCdp.setUiMode).not.toHaveBeenCalled();
+            expect(_mockAdapter.changeUIMode).not.toHaveBeenCalled();
         });
     });
 

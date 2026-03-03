@@ -2,7 +2,7 @@ import { Message } from 'discord.js';
 
 import { ChatSessionRepository } from '../database/chatSessionRepository';
 import { CdpBridge } from './cdpBridgeManager';
-import { CdpService } from './cdpService';
+import { EditorAdapter } from '../adapters/EditorAdapter';
 import { ChannelManager } from './channelManager';
 import { ChatSessionService } from './chatSessionService';
 import { ModeService } from './modeService';
@@ -23,7 +23,7 @@ export interface PromptDispatchOptions {
 export interface PromptDispatchRequest {
     message: Message;
     prompt: string;
-    cdp: CdpService;
+    editorAdapter: EditorAdapter;
     inboundImages?: InboundImageAttachment[];
     options?: PromptDispatchOptions;
 }
@@ -36,7 +36,7 @@ export interface PromptDispatcherDeps {
         bridge: CdpBridge,
         message: Message,
         prompt: string,
-        cdp: CdpService,
+        editorAdapter: EditorAdapter,
         modeService: ModeService,
         modelService: ModelService,
         inboundImages?: InboundImageAttachment[],
@@ -56,7 +56,7 @@ export class PromptDispatcher {
             this.deps.bridge,
             req.message,
             req.prompt,
-            req.cdp,
+            req.editorAdapter,
             this.deps.modeService,
             this.deps.modelService,
             req.inboundImages ?? [],

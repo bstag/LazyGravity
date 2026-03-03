@@ -5,7 +5,15 @@ jest.mock('../../src/utils/logger', () => ({
     logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-function createMockCdp(overrides: {
+jest.mock('../../src/adapters/AdapterFactory', () => ({
+    AdapterFactory: {
+        create: jest.fn(),
+    },
+}));
+
+import { AdapterFactory } from '../../src/adapters/AdapterFactory';
+
+function createMockAdapter(overrides: {
     currentModel?: string | null;
     availableModels?: string[];
     setUiModelResult?: { ok: boolean; model?: string; error?: string };
@@ -13,7 +21,7 @@ function createMockCdp(overrides: {
     return {
         getCurrentModel: jest.fn().mockResolvedValue(overrides.currentModel ?? null),
         getUiModels: jest.fn().mockResolvedValue(overrides.availableModels ?? []),
-        setUiModel: jest.fn().mockResolvedValue(overrides.setUiModelResult ?? { ok: true, model: 'test' }),
+        changeUIModel: jest.fn().mockResolvedValue(overrides.setUiModelResult ?? { ok: true, model: 'test' }),
     };
 }
 
@@ -22,34 +30,38 @@ describe('applyDefaultModel', () => {
 
     beforeEach(() => {
         modelService = new ModelService();
+        jest.clearAllMocks();
     });
 
     it('skips when no default model is set', async () => {
-        const cdp = createMockCdp();
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const adapter = createMockAdapter();
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(false);
         expect(result.modelName).toBeNull();
         expect(result.stale).toBe(false);
-        expect(cdp.getCurrentModel).not.toHaveBeenCalled();
+        expect(adapter.getCurrentModel).not.toHaveBeenCalled();
     });
 
     it('skips when current model already matches the default', async () => {
         modelService.setDefaultModel('gemini-3-flash');
-        const cdp = createMockCdp({ currentModel: 'gemini-3-flash' });
+        const adapter = createMockAdapter({ currentModel: 'gemini-3-flash' });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(true);
         expect(result.stale).toBe(false);
-        expect(cdp.setUiModel).not.toHaveBeenCalled();
+        expect(adapter.changeUIModel).not.toHaveBeenCalled();
     });
 
     it('matches case-insensitively when current model matches', async () => {
         modelService.setDefaultModel('Gemini-3-Flash');
-        const cdp = createMockCdp({ currentModel: 'gemini-3-flash' });
+        const adapter = createMockAdapter({ currentModel: 'gemini-3-flash' });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(true);
         expect(result.stale).toBe(false);
@@ -57,27 +69,29 @@ describe('applyDefaultModel', () => {
 
     it('applies the default model when exact match is found in available models', async () => {
         modelService.setDefaultModel('claude-sonnet-4.6-thinking');
-        const cdp = createMockCdp({
+        const adapter = createMockAdapter({
             currentModel: 'gemini-3-flash',
             availableModels: ['gemini-3-flash', 'claude-sonnet-4.6-thinking'],
             setUiModelResult: { ok: true, model: 'claude-sonnet-4.6-thinking' },
         });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(true);
         expect(result.stale).toBe(false);
-        expect(cdp.setUiModel).toHaveBeenCalledWith('claude-sonnet-4.6-thinking');
+        expect(adapter.changeUIModel).toHaveBeenCalledWith('claude-sonnet-4.6-thinking');
     });
 
     it('marks the result as stale when no exact match is found', async () => {
         modelService.setDefaultModel('old-model-name');
-        const cdp = createMockCdp({
+        const adapter = createMockAdapter({
             currentModel: 'gemini-3-flash',
             availableModels: ['gemini-3-flash', 'claude-sonnet-4.6-thinking'],
         });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(false);
         expect(result.stale).toBe(true);
@@ -85,15 +99,16 @@ describe('applyDefaultModel', () => {
         expect(result.staleMessage).toContain('gemini-3-flash');
     });
 
-    it('returns not applied when setUiModel fails', async () => {
+    it('returns not applied when changeUIModel fails', async () => {
         modelService.setDefaultModel('claude-sonnet-4.6-thinking');
-        const cdp = createMockCdp({
+        const adapter = createMockAdapter({
             currentModel: 'gemini-3-flash',
             availableModels: ['claude-sonnet-4.6-thinking'],
             setUiModelResult: { ok: false, error: 'CDP timeout' },
         });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        const result = await applyDefaultModel(cdp as any, modelService);
+        const result = await applyDefaultModel({} as any, modelService);
 
         expect(result.applied).toBe(false);
         expect(result.stale).toBe(false);
@@ -105,13 +120,14 @@ describe('applyDefaultModel', () => {
         modelService.setModel('gemini-3-flash');
         expect(modelService.isPendingSync()).toBe(true);
 
-        const cdp = createMockCdp({
+        const adapter = createMockAdapter({
             currentModel: 'gemini-3-flash',
             availableModels: ['claude-sonnet-4.6-thinking'],
             setUiModelResult: { ok: true, model: 'claude-sonnet-4.6-thinking' },
         });
+        (AdapterFactory.create as jest.Mock).mockReturnValue(adapter);
 
-        await applyDefaultModel(cdp as any, modelService);
+        await applyDefaultModel({} as any, modelService);
 
         expect(modelService.isPendingSync()).toBe(false);
     });

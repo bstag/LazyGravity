@@ -3,6 +3,7 @@ import { EmbedBuilder, Message, TextChannel } from 'discord.js';
 import { parseMessageContent } from '../commands/messageParser';
 import { SlashCommandHandler } from '../commands/slashCommandHandler';
 import { WorkspaceCommandHandler } from '../commands/workspaceCommandHandler';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import { ChatSessionRepository } from '../database/chatSessionRepository';
 import { UserPreferenceRepository } from '../database/userPreferenceRepository';
 import { formatAsPlainText } from '../utils/plainTextFormatter';
@@ -273,7 +274,10 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                             }
 
                             if (session?.isRenamed && session.displayName) {
-                                const activationResult = await deps.chatSessionService.activateSessionByTitle(cdp, session.displayName);
+                                const activationResult = await deps.chatSessionService.activateSessionByTitle(
+                                    AdapterFactory.create('antigravity', cdp),
+                                    session.displayName
+                                );
                                 if (!activationResult.ok) {
                                     const reason = activationResult.error ? ` (${activationResult.error})` : '';
                                     await message.reply(
@@ -284,7 +288,9 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                 }
                             } else if (session && !session.isRenamed) {
                                 try {
-                                    const chatResult = await deps.chatSessionService.startNewChat(cdp);
+                                    const chatResult = await deps.chatSessionService.startNewChat(
+                                        AdapterFactory.create('antigravity', cdp)
+                                    );
                                     if (!chatResult.ok) {
                                         logger.warn('[MessageCreate] Failed to start new chat in Antigravity:', chatResult.error);
                                         (message.channel as any).send(`⚠️ Could not open a new chat in Antigravity. Sending to existing chat.`).catch(() => { });

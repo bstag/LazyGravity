@@ -16,7 +16,7 @@ export async function buildScreenshotPayload(
     }
 
     try {
-        const screenshot = new ScreenshotService({ cdpService: cdp });
+        const screenshot = new ScreenshotService({ editorAdapter: AdapterFactory.create('antigravity', cdp) });
         const result = await screenshot.capture({ format: 'png' });
         if (result.success && result.buffer) {
             const file: FileAttachment = {
@@ -31,6 +31,8 @@ export async function buildScreenshotPayload(
         return { text: `Screenshot error: ${e.message}` };
     }
 }
+
+import { AdapterFactory } from '../adapters/AdapterFactory';
 
 /**
  * Capture a screenshot and send it to Discord
@@ -50,7 +52,7 @@ export async function handleScreenshot(
     }
 
     try {
-        const screenshot = new ScreenshotService({ cdpService: cdp });
+        const screenshot = new ScreenshotService({ editorAdapter: AdapterFactory.create('antigravity', cdp) });
         const result = await screenshot.capture({ format: 'png' });
         if (result.success && result.buffer) {
             const attachment = new AttachmentBuilder(result.buffer, { name: 'screenshot.png' });

@@ -17,7 +17,7 @@ function buildDeps(overrides: Record<string, any> = {}) {
         bridge: {
             autoAccept: { handle: jest.fn(), isEnabled: jest.fn() },
             pool: {
-                getOrConnect: jest.fn().mockResolvedValue({}),
+                getOrConnect: jest.fn().mockResolvedValue({ isConnected: () => true, on: jest.fn() } as any),
                 extractProjectName: jest.fn().mockReturnValue('proj-a'),
             },
         } as any,

@@ -19,6 +19,7 @@ import { CdpService } from '../services/cdpService';
 import { ResponseMonitor } from '../services/responseMonitor';
 import { WorkspaceService } from '../services/workspaceService';
 import { buildSessionPickerUI } from '../ui/sessionPickerUi';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import { logger } from '../utils/logger';
 import type { ExtractionMode } from '../utils/config';
 
@@ -102,7 +103,7 @@ export class JoinCommandHandler {
             return;
         }
 
-        const sessions = await this.chatSessionService.listAllSessions(cdp);
+        const sessions = await this.chatSessionService.listAllSessions(AdapterFactory.create('antigravity', cdp));
         const { embeds, components } = buildSessionPickerUI(sessions);
 
         await interaction.editReply({ embeds, components });
@@ -161,7 +162,7 @@ export class JoinCommandHandler {
         }
 
         // Step 3: Activate the session in Antigravity
-        const activateResult = await this.chatSessionService.activateSessionByTitle(cdp, selectedTitle);
+        const activateResult = await this.chatSessionService.activateSessionByTitle(AdapterFactory.create('antigravity', cdp), selectedTitle);
         if (!activateResult.ok) {
             await interaction.editReply({ content: t(`⚠️ Failed to join session: ${activateResult.error}`) });
             return;
@@ -355,11 +356,11 @@ export class JoinCommandHandler {
         // Stop previous monitor if still running
         const prev = this.activeResponseMonitors.get(projectName);
         if (prev?.isActive()) {
-            prev.stop().catch(() => {});
+            prev.stop().catch(() => { });
         }
 
         const monitor = new ResponseMonitor({
-            cdpService: cdp,
+            editorAdapter: AdapterFactory.create('antigravity', cdp),
             pollIntervalMs: 2000,
             maxDurationMs: 300000,
             extractionMode: this.extractionMode,

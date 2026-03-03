@@ -23,6 +23,7 @@ import { escapeHtml } from '../platform/telegram/telegramFormatter';
 import type { ModeService } from '../services/modeService';
 import type { ModelService } from '../services/modelService';
 import { applyDefaultModel } from '../services/defaultModelApplicator';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import { logger } from '../utils/logger';
 import { downloadTelegramPhotos } from '../utils/telegramImageHandler';
 import { cleanupInboundImageAttachments } from '../utils/imageHandler';
@@ -61,7 +62,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
         workspacePath: string,
         task: () => Promise<void>,
     ): Promise<void> {
-        const current = (workspaceQueues.get(workspacePath) ?? Promise.resolve()).catch(() => {});
+        const current = (workspaceQueues.get(workspacePath) ?? Promise.resolve()).catch(() => { });
         const next = current.then(async () => {
             try {
                 await task();
@@ -160,7 +161,8 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
             // while the user believes they're in Fast mode.
             if (deps.modeService) {
                 const currentMode = deps.modeService.getCurrentMode();
-                const syncRes = await cdp.setUiMode(currentMode);
+                const adapter = AdapterFactory.create('antigravity', cdp);
+                const syncRes = await adapter.changeUIMode(currentMode);
                 if (syncRes.ok) {
                     deps.modeService.markSynced();
                     logger.debug(`[TelegramHandler] Mode pushed to Antigravity: ${currentMode}`);
@@ -183,7 +185,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
             ensurePlanningDetector(deps.bridge, cdp, projectName);
 
             // Acknowledge receipt
-            await message.react('\u{1F440}').catch(() => {});
+            await message.react('\u{1F440}').catch(() => { });
 
             // Download image attachments if present
             let inboundImages: InboundImageAttachment[] = [];
@@ -230,7 +232,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
             } finally {
                 // Cleanup temp files regardless of outcome
                 if (inboundImages.length > 0) {
-                    await cleanupInboundImageAttachments(inboundImages).catch(() => {});
+                    await cleanupInboundImageAttachments(inboundImages).catch(() => { });
                 }
             }
 
@@ -264,7 +266,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
                 };
 
                 const monitor = new ResponseMonitor({
-                    cdpService: cdp,
+                    editorAdapter: AdapterFactory.create('antigravity', cdp),
                     pollIntervalMs: 2000,
                     maxDurationMs: TIMEOUT_MS,
                     stopGoneConfirmCount: 3,
@@ -280,7 +282,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
                             // (activity logs may contain <, >, & from code/paths)
                             statusMsg.edit({
                                 text: `${escapeHtml(lastActivityLogText)}\n\n⏱️ ${elapsed}s`,
-                            }).catch(() => {});
+                            }).catch(() => { });
                         }
                     },
 
@@ -307,9 +309,9 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
                             if (statusMsg && finalLogText && finalLogText.trim().length > 0) {
                                 await statusMsg.edit({
                                     text: `${escapeHtml(finalLogText)}\n\n✅ Done in ${elapsed}s`,
-                                }).catch(() => {});
+                                }).catch(() => { });
                             } else if (statusMsg) {
-                                await statusMsg.delete().catch(() => {});
+                                await statusMsg.delete().catch(() => { });
                             }
 
                             // Send the final response
@@ -331,7 +333,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
                                 const elapsed = Math.round((Date.now() - startTime) / 1000);
                                 await statusMsg.edit({
                                     text: `⏰ Timed out after ${elapsed}s`,
-                                }).catch(() => {});
+                                }).catch(() => { });
                             }
 
                             if (lastText && lastText.trim().length > 0) {
@@ -347,7 +349,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
 
                 const safetyTimer = setTimeout(() => {
                     logger.warn(`[TelegramHandler:${projectName}] Safety timeout — releasing queue after 300s`);
-                    monitor.stop().catch(() => {});
+                    monitor.stop().catch(() => { });
                     settle();
                 }, TIMEOUT_MS);
 

@@ -4,11 +4,11 @@ describe('modelsUi', () => {
     it('returns a connection error message when not connected', async () => {
         const target = { editReply: jest.fn().mockResolvedValue(undefined) };
         await sendModelsUI(target, {
-            getCurrentCdp: () => null,
+            getCurrentEditorAdapter: () => null,
             fetchQuota: async () => [],
         });
 
-        expect(target.editReply).toHaveBeenCalledWith({ content: 'Not connected to CDP.' });
+        expect(target.editReply).toHaveBeenCalledWith({ content: 'Not connected to EditorAdapter.' });
     });
 
     it('returns an Embed when models are available', async () => {
@@ -19,7 +19,7 @@ describe('modelsUi', () => {
         };
 
         await sendModelsUI(target, {
-            getCurrentCdp: () => cdp as any,
+            getCurrentEditorAdapter: () => cdp as any,
             fetchQuota: async () => [],
         });
 
@@ -60,7 +60,7 @@ describe('buildModelsUI', () => {
         };
 
         await sendModelsUI(target, {
-            getCurrentCdp: () => cdp as any,
+            getCurrentEditorAdapter: () => cdp as any,
             fetchQuota: async () => [],
         });
 

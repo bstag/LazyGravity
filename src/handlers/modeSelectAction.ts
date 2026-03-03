@@ -11,6 +11,7 @@ import type { PlatformSelectInteraction } from '../platform/types';
 import type { SelectAction } from './selectHandler';
 import type { CdpBridge } from '../services/cdpBridgeManager';
 import { getCurrentCdp } from '../services/cdpBridgeManager';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import type { ModeService } from '../services/modeService';
 import { MODE_DISPLAY_NAMES } from '../services/modeService';
 import { buildModePayload } from '../ui/modeUi';
@@ -37,7 +38,7 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
             // Validate mode name before any side effects
             const normalized = selectedMode.trim().toLowerCase();
             if (!['fast', 'plan'].includes(normalized)) {
-                await interaction.followUp({ text: `Invalid mode: ${selectedMode}` }).catch(() => {});
+                await interaction.followUp({ text: `Invalid mode: ${selectedMode}` }).catch(() => { });
                 return;
             }
 
@@ -48,12 +49,13 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
             const displayName = MODE_DISPLAY_NAMES[selectedMode] || selectedMode;
 
             if (cdp) {
-                const res = await cdp.setUiMode(selectedMode);
+                const adapter = AdapterFactory.create('antigravity', cdp);
+                const res = await adapter.changeUIMode(selectedMode);
                 if (!res.ok) {
                     logger.warn(`[ModeSelect] UI mode switch failed: ${res.error}`);
                     await interaction.followUp({
                         text: `Failed to switch mode in Antigravity: ${res.error}`,
-                    }).catch(() => {});
+                    }).catch(() => { });
                     return;
                 }
                 // CDP sync succeeded — update local cache as synced
@@ -63,7 +65,7 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
                 await interaction.update(payload);
                 await interaction.followUp({
                     text: `Mode changed to ${displayName}.`,
-                }).catch(() => {});
+                }).catch(() => { });
             } else {
                 // No CDP — set locally as pending
                 deps.modeService.setMode(selectedMode, false);
@@ -72,7 +74,7 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
                 await interaction.update(payload);
                 await interaction.followUp({
                     text: `Mode set to ${displayName}. Will sync when connected to Antigravity.`,
-                }).catch(() => {});
+                }).catch(() => { });
             }
         },
     };

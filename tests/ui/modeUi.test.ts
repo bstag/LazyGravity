@@ -14,27 +14,27 @@ describe('modeUi', () => {
         expect(payload.components?.length).toBeGreaterThan(0);
     });
 
-    it('syncs mode from CDP when deps.getCurrentCdp is provided', async () => {
+    it('syncs mode from CDP when deps.getCurrentEditorAdapter is provided', async () => {
         const modeService = new ModeService();
         // Default mode is 'fast', CDP returns 'plan'
-        const mockCdp = { getCurrentMode: jest.fn().mockResolvedValue('plan') };
+        const mockAdapter = { getCurrentMode: jest.fn().mockResolvedValue('plan') };
         const target = { editReply: jest.fn().mockResolvedValue(undefined) };
 
-        await sendModeUI(target, modeService, { getCurrentCdp: () => mockCdp as any });
+        await sendModeUI(target, modeService, { getCurrentEditorAdapter: () => mockAdapter as any });
 
-        expect(mockCdp.getCurrentMode).toHaveBeenCalled();
+        expect(mockAdapter.getCurrentMode).toHaveBeenCalled();
         // modeService should now be synced to 'plan'
         expect(modeService.getCurrentMode()).toBe('plan');
     });
 
     it('does not sync mode when CDP returns null', async () => {
         const modeService = new ModeService();
-        const mockCdp = { getCurrentMode: jest.fn().mockResolvedValue(null) };
+        const mockAdapter = { getCurrentMode: jest.fn().mockResolvedValue(null) };
         const target = { editReply: jest.fn().mockResolvedValue(undefined) };
 
-        await sendModeUI(target, modeService, { getCurrentCdp: () => mockCdp as any });
+        await sendModeUI(target, modeService, { getCurrentEditorAdapter: () => mockAdapter as any });
 
-        expect(mockCdp.getCurrentMode).toHaveBeenCalled();
+        expect(mockAdapter.getCurrentMode).toHaveBeenCalled();
         // mode should remain 'fast' (default)
         expect(modeService.getCurrentMode()).toBe('fast');
     });
@@ -48,11 +48,11 @@ describe('modeUi', () => {
         expect(target.editReply).toHaveBeenCalledTimes(1);
     });
 
-    it('works when getCurrentCdp returns null', async () => {
+    it('works when getCurrentEditorAdapter returns null', async () => {
         const modeService = new ModeService();
         const target = { editReply: jest.fn().mockResolvedValue(undefined) };
 
-        await sendModeUI(target, modeService, { getCurrentCdp: () => null });
+        await sendModeUI(target, modeService, { getCurrentEditorAdapter: () => null });
 
         expect(target.editReply).toHaveBeenCalledTimes(1);
         expect(modeService.getCurrentMode()).toBe('fast');

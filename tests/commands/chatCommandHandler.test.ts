@@ -109,6 +109,7 @@ describe('ChatCommandHandler', () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-proj', guildId: 'guild-1' });
 
             const mockCdp = {
+            on: jest.fn(),
                 isConnected: jest.fn().mockReturnValue(true),
                 getPrimaryContextId: jest.fn().mockReturnValue(1),
                 call: jest.fn(),
@@ -159,6 +160,9 @@ describe('ChatCommandHandler', () => {
             bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'proj', guildId: 'guild-1' });
 
             const mockCdp = {
+            on: jest.fn(),
+            getPrimaryContextId: jest.fn().mockReturnValue(42),
+            call: jest.fn().mockResolvedValue({ result: { value: { ok: true } } }),
                 isConnected: jest.fn().mockReturnValue(true),
                 discoverAndConnectForWorkspace: jest.fn().mockResolvedValue(true),
             };

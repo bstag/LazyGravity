@@ -1,6 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
-import { CdpService } from '../services/cdpService';
 import type { MessagePayload, ButtonDef, ComponentRow } from '../platform/types';
 import {
     createRichContent,
@@ -10,9 +9,10 @@ import {
     withFooter,
     withTimestamp,
 } from '../platform/richContentBuilder';
+import { EditorAdapter } from '../adapters/EditorAdapter';
 
 export interface ModelsUiDeps {
-    getCurrentCdp: () => CdpService | null;
+    getCurrentEditorAdapter: () => EditorAdapter | null;
     fetchQuota: () => Promise<any[]>;
 }
 
@@ -145,11 +145,11 @@ export function buildModelsPayload(
  * Returns null when CDP is unavailable or no models are found.
  */
 export async function buildModelsUI(
-    cdp: CdpService,
+    adapter: EditorAdapter,
     fetchQuota: () => Promise<any[]>,
 ): Promise<ModelsUiPayload | null> {
-    const models = await cdp.getUiModels();
-    const currentModel = await cdp.getCurrentModel();
+    const models = await adapter.getUiModels();
+    const currentModel = await adapter.getCurrentModel();
     const quotaData = await fetchQuota();
 
     if (models.length === 0) return null;
@@ -244,20 +244,18 @@ export async function buildModelsUI(
  * Build and send the interactive UI for the /models command
  */
 export async function sendModelsUI(
-    target: { editReply: (opts: any) => Promise<any> },
+    interaction: { editReply: (options: any) => Promise<any> },
     deps: ModelsUiDeps,
 ): Promise<void> {
-    const cdp = deps.getCurrentCdp();
-    if (!cdp) {
-        await target.editReply({ content: 'Not connected to CDP.' });
-        return;
+    const editorAdapter = deps.getCurrentEditorAdapter();
+    if (!editorAdapter) {
+        return interaction.editReply({ content: 'Not connected to EditorAdapter.' });
     }
 
-    const payload = await buildModelsUI(cdp, deps.fetchQuota);
+    const payload = await buildModelsUI(editorAdapter, deps.fetchQuota);
     if (!payload) {
-        await target.editReply({ content: 'Failed to retrieve model list from Antigravity.' });
-        return;
+        return interaction.editReply({ content: 'Failed to retrieve model list from Antigravity.' });
     }
 
-    await target.editReply({ content: '', ...payload });
+    await interaction.editReply({ content: '', ...payload });
 }

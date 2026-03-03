@@ -8,6 +8,7 @@
 
 import type { CdpService } from './cdpService';
 import type { ModelService } from './modelService';
+import { AdapterFactory } from '../adapters/AdapterFactory';
 import { logger } from '../utils/logger';
 
 /** Result of attempting to apply the default model */
@@ -41,20 +42,21 @@ export async function applyDefaultModel(
         return { applied: false, modelName: null, stale: false, staleMessage: null };
     }
 
-    const currentModel = await cdp.getCurrentModel();
+    const adapter = AdapterFactory.create('antigravity', cdp);
+    const currentModel = await adapter.getCurrentModel();
     if (currentModel && currentModel.toLowerCase() === defaultModel.toLowerCase()) {
         modelService.markSynced();
         logger.debug(`[DefaultModelApplicator] Already on default model: ${defaultModel}`);
         return { applied: true, modelName: defaultModel, stale: false, staleMessage: null };
     }
 
-    const availableModels = await cdp.getUiModels();
+    const availableModels = await adapter.getUiModels();
     const exactMatch = availableModels.find(
-        m => m.toLowerCase() === defaultModel.toLowerCase(),
+        (m: string) => m.toLowerCase() === defaultModel.toLowerCase(),
     );
 
     if (exactMatch) {
-        const result = await cdp.setUiModel(exactMatch);
+        const result = await adapter.changeUIModel(exactMatch);
         if (result.ok) {
             modelService.markSynced();
             logger.debug(`[DefaultModelApplicator] Applied default model: ${exactMatch}`);
