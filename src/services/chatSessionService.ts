@@ -464,6 +464,7 @@ export class ChatSessionService {
      * @returns Array of session list items (empty array on failure)
      */
     async listAllSessions(cdpService: CdpService): Promise<SessionListItem[]> {
+        let panelOpened = false;
         try {
             // Step 1: Find Past Conversations button
             const btnState = await this.evaluateOnAnyContext(
@@ -475,6 +476,7 @@ export class ChatSessionService {
 
             // Step 2: Click via CDP mouse events (reliable in Electron)
             await this.cdpMouseClick(cdpService, btnState.x, btnState.y);
+            panelOpened = true;
 
             // Step 3: Wait for panel to render (poll for content, up to 3s)
             const PANEL_READY_CHECK = `(() => {
@@ -524,7 +526,21 @@ export class ChatSessionService {
                 }
             }
 
-            // Step 7: Close panel with Escape
+            return sessions.slice(0, ChatSessionService.LIST_SESSIONS_TARGET);
+        } catch (_) {
+            return [];
+        } finally {
+            if (panelOpened) {
+                await this.closePanelWithEscape(cdpService);
+            }
+        }
+    }
+
+    /**
+     * Close the Past Conversations panel by sending Escape key events.
+     */
+    private async closePanelWithEscape(cdpService: CdpService): Promise<void> {
+        try {
             await cdpService.call('Input.dispatchKeyEvent', {
                 type: 'keyDown', key: 'Escape', code: 'Escape',
                 windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27,
@@ -533,11 +549,7 @@ export class ChatSessionService {
                 type: 'keyUp', key: 'Escape', code: 'Escape',
                 windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27,
             });
-
-            return sessions.slice(0, ChatSessionService.LIST_SESSIONS_TARGET);
-        } catch (_) {
-            return [];
-        }
+        } catch (_) { /* best-effort cleanup */ }
     }
 
     /**
