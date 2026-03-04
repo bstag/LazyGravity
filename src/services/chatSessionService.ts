@@ -488,11 +488,17 @@ export class ChatSessionService {
                     isVisible(c) && c.querySelector('div[class*="cursor-pointer"]')
                 );
             })()`;
+            let panelReady = false;
             const deadline = Date.now() + 3000;
             while (Date.now() < deadline) {
-                const ready = await this.evaluateOnAnyContext(cdpService, PANEL_READY_CHECK, false);
-                if (ready) break;
+                panelReady = Boolean(
+                    await this.evaluateOnAnyContext(cdpService, PANEL_READY_CHECK, false),
+                );
+                if (panelReady) break;
                 await new Promise((r) => setTimeout(r, 200));
+            }
+            if (!panelReady) {
+                return [];
             }
 
             // Step 4: Scrape sessions
