@@ -205,11 +205,23 @@ describe('JoinCommandHandler', () => {
             };
             const bridge = { pool: mockPool } as any;
 
-            await handler.handleJoinSelect(interaction as any, bridge);
+            // Ensure fetch returns a channel so the existing flow works
+            const interactionWithFetch = {
+                ...interaction,
+                guild: {
+                    ...mockGuild,
+                    channels: {
+                        ...mockGuild.channels,
+                        fetch: jest.fn().mockResolvedValue({ id: 'ch-existing', name: 'My Session' }),
+                    },
+                },
+            };
+
+            await handler.handleJoinSelect(interactionWithFetch as any, bridge);
 
             // Should NOT activate session or create channel
             expect(mockService.activateSessionByTitle).not.toHaveBeenCalled();
-            expect(interaction.editReply).toHaveBeenCalledWith(
+            expect(interactionWithFetch.editReply).toHaveBeenCalledWith(
                 expect.objectContaining({
                     embeds: expect.arrayContaining([
                         expect.objectContaining({
@@ -220,6 +232,55 @@ describe('JoinCommandHandler', () => {
                     ]),
                 }),
             );
+        });
+
+        it('cleans up stale channel and creates new one when session channel was deleted', async () => {
+            bindingRepo.upsert({ channelId: 'ch-1', workspacePath: 'my-project', guildId: 'guild-1' });
+            chatSessionRepo.create({
+                channelId: 'deleted-ch',
+                categoryId: 'cat-1',
+                workspacePath: 'my-project',
+                sessionNumber: 1,
+                guildId: 'guild-1',
+            });
+            chatSessionRepo.updateDisplayName('deleted-ch', 'Lost Session');
+
+            const mockCdp = { isConnected: () => true } as any;
+            mockPool.getOrConnect.mockResolvedValue(mockCdp);
+            mockService.activateSessionByTitle.mockResolvedValue({ ok: true });
+
+            // Mock guild where fetch REJECTS (channel deleted) and then creates a new one
+            const guildWithCreate = {
+                ...mockGuild,
+                channels: {
+                    ...mockGuild.channels,
+                    fetch: jest.fn().mockImplementation((id) => {
+                        if (id === 'deleted-ch') return Promise.reject(new Error('Unknown Channel'));
+                        return Promise.resolve({ find: jest.fn() });
+                    }),
+                    create: jest.fn().mockResolvedValue({ id: 'new-ch-43' }),
+                },
+            };
+
+            const interaction = {
+                guild: guildWithCreate,
+                channelId: 'ch-1',
+                values: ['Lost Session'],
+                editReply: jest.fn().mockResolvedValue(undefined),
+            };
+            const bridge = { pool: mockPool } as any;
+
+            await handler.handleJoinSelect(interaction as any, bridge);
+
+            // Stale binding/session should be cleaned up
+            expect(bindingRepo.findByChannelId('deleted-ch')).toBeUndefined();
+            expect(chatSessionRepo.findByChannelId('deleted-ch')).toBeUndefined();
+
+            // New channel/session should be created
+            expect(mockService.activateSessionByTitle).toHaveBeenCalledWith(mockCdp, 'Lost Session');
+            expect(guildWithCreate.channels.create).toHaveBeenCalled();
+            expect(bindingRepo.findByChannelId('new-ch-43')?.workspacePath).toBe('my-project');
+            expect(chatSessionRepo.findByChannelId('new-ch-43')?.displayName).toBe('Lost Session');
         });
 
         it('creates new channel and binds session when no channel exists', async () => {

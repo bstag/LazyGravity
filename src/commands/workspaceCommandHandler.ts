@@ -7,7 +7,7 @@ import {
     EmbedBuilder,
     Guild,
 } from 'discord.js';
-import { WorkspaceBindingRepository } from '../database/workspaceBindingRepository';
+import { WorkspaceBindingRepository, WorkspaceBindingRecord } from '../database/workspaceBindingRepository';
 import { ChatSessionRepository } from '../database/chatSessionRepository';
 import { WorkspaceService } from '../services/workspaceService';
 import { ChannelManager } from '../services/channelManager';
@@ -27,6 +27,28 @@ export class WorkspaceCommandHandler {
     private readonly channelManager: ChannelManager;
 
     private processingWorkspaces: Set<string> = new Set();
+
+    /**
+     * Filters out stale bindings where the Discord channel no longer exists.
+     * Deletes stale bindings from the repository.
+     */
+    private async getValidBindings(bindings: WorkspaceBindingRecord[], guild: Guild): Promise<WorkspaceBindingRecord[]> {
+        const validBindings: WorkspaceBindingRecord[] = [];
+        for (const b of bindings) {
+            try {
+                // Try fetching the channel from Discord API
+                const channel = await guild.channels.fetch(b.channelId).catch(() => null);
+                if (channel) {
+                    validBindings.push(b);
+                } else {
+                    this.bindingRepo.deleteByChannelId(b.channelId);
+                }
+            } catch (error) {
+                this.bindingRepo.deleteByChannelId(b.channelId);
+            }
+        }
+        return validBindings;
+    }
 
     constructor(
         bindingRepo: WorkspaceBindingRepository,
@@ -83,7 +105,9 @@ export class WorkspaceCommandHandler {
         }
 
         // Check if the same project is already bound (prevent duplicates)
-        const existingBindings = this.bindingRepo.findByWorkspacePathAndGuildId(workspacePath, guild.id);
+        let existingBindings = this.bindingRepo.findByWorkspacePathAndGuildId(workspacePath, guild.id);
+        existingBindings = await this.getValidBindings(existingBindings, guild);
+
         if (existingBindings.length > 0) {
             const channelLinks = existingBindings.map(b => `<#${b.channelId}>`).join(', ');
             const fullPath = this.workspaceService.getWorkspacePath(workspacePath);
@@ -190,7 +214,9 @@ export class WorkspaceCommandHandler {
 
         // Check for existing project
         if (this.workspaceService.exists(name)) {
-            const existingBindings = this.bindingRepo.findByWorkspacePathAndGuildId(name, guild.id);
+            let existingBindings = this.bindingRepo.findByWorkspacePathAndGuildId(name, guild.id);
+            existingBindings = await this.getValidBindings(existingBindings, guild);
+
             if (existingBindings.length > 0) {
                 const channelLinks = existingBindings.map(b => `<#${b.channelId}>`).join(', ');
                 await interaction.editReply({
